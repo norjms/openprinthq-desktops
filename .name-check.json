@@ -1,0 +1,29 @@
+{
+  "mode": "enforce",
+  "allow": [
+    "artisanhub-manager",
+    "artisanhub\\.managed",
+    "artisanhub-push-v1",
+    "artisan_hub_[a-z_]+",
+    "artisanhub-connector(\\.php)?",
+    "themes/ArtisanHub",
+    "<name>ArtisanHub</name>",
+    "gtk-theme-name=ArtisanHub",
+    "theme becomes \"ArtisanHub\"",
+    "\"ArtisanHub\" is added",
+    "artisanhub-dashboard",
+    "theme \"ArtisanHub\"",
+    "\"gtk-theme-name\": \"ArtisanHub\""
+  ],
+  "allow_until_renamed": [
+    "(github\\.com/|ghcr\\.io/)?norjms/artisan-?hub[A-Za-z0-9_.-]*",
+    "\\bartisan-hub-farm(-slicer)?\\b"
+  ],
+  "skip": [
+    "CHANGELOG*",
+    "*/CHANGELOG*",
+    "docs/installer-decision-log.md",
+    "docs/change-log.md",
+    "docs/legacy-names.md"
+  ]
+}

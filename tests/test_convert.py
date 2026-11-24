@@ -116,7 +116,7 @@ class Conversion(unittest.TestCase):
         self.assertTrue((s6 / "svc-ahi-inbox/dependencies.d/svc-de").exists())
         self.assertIn('"single_instance": true', self.read(f"{convert.S6}/init-ahi-orca/run"))
         # Q8: web addresses open in Firefox through ahi-open-url, which stands in for the hardened desktop's xdg-open.
-        for rel in (convert.OPENER, convert.XDG_OPEN):
+        for rel in (convert.OPENER, convert.XDG_OPEN, convert.FIREFOX, convert.SIGNINS):
             self.assertTrue(os.access(self.root / rel, os.X_OK), rel)
         self.assertIn("ahi-browser.desktop", self.read(convert.MIMEAPPS))
         self.assertIn("Exec=/usr/local/bin/ahi-open-url %u", self.read(convert.BROWSER_DESKTOP))
@@ -194,7 +194,8 @@ class OpenerOpensTheWebOnly(unittest.TestCase):
         import subprocess
         fake = Path(tempfile.mkdtemp(prefix="ahi-opener-"))
         opener = fake / "ahi-open-url"
-        body = (REPO / "convert/files/browser/ahi-open-url").read_text().replace("/usr/bin/firefox", str(fake / "firefox"))
+        body = (REPO / "convert/files/browser/ahi-open-url").read_text().replace(
+            "/usr/local/bin/ahi-firefox", str(fake / "firefox"))
         opener.write_text(body)
         (fake / "firefox").write_text('#!/bin/sh\necho "$@" > "$(dirname "$0")/opened"\n')
         os.chmod(opener, 0o755)

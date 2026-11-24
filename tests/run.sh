@@ -41,7 +41,13 @@ if [ -n "${IMAGE:-}" ]; then
     grep -q "x-scheme-handler/https=ahi-browser.desktop" /etc/xdg/mimeapps.list
     grep -q "file:///" /usr/lib/firefox/distribution/policies.json
     test -x /etc/s6-overlay/s6-rc.d/init-ahi-browser/run
-    ! /usr/local/bin/ahi-open-url file:///etc/passwd 2> /dev/null
+    if /usr/local/bin/ahi-open-url file:///etc/passwd 2> /dev/null; then echo "the opener opened a file" >&2; exit 1; fi
+    # Firefox shares sign-ins across desktops (OPHQ-163): the opener and the menu use the wrapper.
+    test -x /usr/local/bin/ahi-firefox
+    grep -q "^exec /usr/local/bin/ahi-firefox " /usr/local/bin/ahi-open-url
+    if grep -qs "<command>/usr/bin/firefox</command>" /defaults/menu.xml /defaults/menu_wayland.xml; then
+      echo "a menu still starts Firefox without the shared sign-ins" >&2; exit 1
+    fi
     test -x /usr/local/bin/ahi-farm-connect
     test -x /etc/s6-overlay/s6-rc.d/init-ahi-farm/run
     grep -q "^VERSION = " /opt/ahi/addon/openprinthq_print_queue.py

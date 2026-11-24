@@ -299,7 +299,8 @@ class NoProductNamesLeftOver(unittest.TestCase):
     def test_shared_files_name_no_single_app(self):
         """The shared files serve every app: none may still be written for OrcaSlicer alone."""
         for path in sorted((REPO / "common").rglob("*")):
-            if path.is_file() and path.suffix not in (".woff2",):
+            # Compiled files hold the checkout's path, which can name an app; only the sources count.
+            if path.is_file() and path.suffix not in (".woff2", ".pyc") and "__pycache__" not in path.parts:
                 with self.subTest(path=str(path.relative_to(REPO))):
                     self.assertIsNone(re.search(r"orca", path.read_text(errors="ignore"), re.I))
 

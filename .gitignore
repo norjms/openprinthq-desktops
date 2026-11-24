@@ -1,3 +1,4 @@
 tests/.upstream/
 *.pyc
 __pycache__/
+apps/orcaslicer/tests/.upstream/

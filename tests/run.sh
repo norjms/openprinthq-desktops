@@ -1,57 +1,31 @@
 #!/usr/bin/env bash
-# Run the tests: take the converted files out of the pinned upstream image, test the conversion on them, and,
-# with IMAGE set, check a built image has every change in place.
+# Run the tests: take the files each app's conversion edits out of its pinned upstream image, test the
+# conversions on them, and, with IMAGE set, check a built image has every change in place.
 #
-#   tests/run.sh                                  conversion tests
-#   IMAGE=openprinthq-orcaslicer:local tests/run.sh   and the built image
+#   tests/run.sh                                                 every app's conversion tests
+#   APPS=bambustudio tests/run.sh                                one app
+#   APPS=bambustudio IMAGE=openprinthq-bambustudio:local tests/run.sh   and its built image
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
 docker="${DOCKER:-docker}"
+apps="${APPS:-$(cd "$here/apps" && for d in */; do [ -f "$d/convert.py" ] && printf '%s ' "${d%/}"; done)}"
 
-DOCKER="$docker" bash "$here/tests/extract-upstream.sh"
-python3 -m unittest discover -s "$here/tests" -v
+for app in $apps; do
+  if grep -q '^FROM .* AS prepared$' "$here/apps/$app/Dockerfile"; then
+    # An app installed on a base image: its files come from the base with the app installed.
+    $docker build -q --target prepared -f "$here/apps/$app/Dockerfile" -t "openprinthq-$app:prepared" "$here" > /dev/null
+    DOCKER="$docker" bash "$here/tests/extract-upstream.sh" "$app" "openprinthq-$app:prepared"
+  else
+    DOCKER="$docker" bash "$here/tests/extract-upstream.sh" "$app"
+  fi
+done
+APPS="$apps" python3 -m unittest discover -s "$here/tests" -v
 
 if [ -n "${IMAGE:-}" ]; then
-  echo "checking $IMAGE"
-  $docker run --rm --entrypoint /bin/bash "$IMAGE" -c '
-    set -e
-    test "$DASHBOARD" = artisanhub-dashboard
-    d=/usr/share/selkies/artisanhub-dashboard
-    grep -q "ahi/ahi-dashboard.css" $d/index.html
-    for f in manrope-latin-400-normal manrope-latin-600-normal sora-latin-500-normal jetbrains-mono-latin-400-normal; do
-      test -s $d/ahi/fonts/$f.woff2
-    done
-    grep -q "<name>ArtisanHub</name>" /defaults/labwc.xml
-    test -s /usr/share/themes/ArtisanHub/labwc/themerc
-    test -s /usr/share/themes/ArtisanHub/gtk-3.0/gtk.css
-    grep -q "gtk-theme-name=ArtisanHub" /etc/gtk-3.0/settings.ini
-    fc-list | grep -qi manrope
-    fc-list | grep -qi "jetbrains mono"
-    test -x /etc/s6-overlay/s6-rc.d/init-ahi-orca/run
-    test -x /etc/s6-overlay/s6-rc.d/init-ahi-files/run
-    test -x /etc/s6-overlay/s6-rc.d/svc-ahi-bus/run
-    test -x /etc/s6-overlay/s6-rc.d/svc-ahi-inbox/run
-    test -e /etc/s6-overlay/s6-rc.d/svc-de/dependencies.d/svc-ahi-bus
-    grep -q "openprinthq-ui.s glass-dark values" /lsiopy/lib/python3.13/site-packages/selkies/stream_server.py
-    grep -q "#8fd3ff" /opt/orcaslicer/resources/web/include/global.css
-    test -s /usr/share/doc/openprinthq-orcaslicer/NOTICE
-    test -x /usr/local/bin/ahi-open-url
-    test -x /usr/local/bin/xdg-open
-    test "$BROWSER" = /usr/local/bin/ahi-open-url
-    grep -q "x-scheme-handler/https=ahi-browser.desktop" /etc/xdg/mimeapps.list
-    grep -q "file:///" /usr/lib/firefox/distribution/policies.json
-    test -x /etc/s6-overlay/s6-rc.d/init-ahi-browser/run
-    if /usr/local/bin/ahi-open-url file:///etc/passwd 2> /dev/null; then echo "the opener opened a file" >&2; exit 1; fi
-    # Firefox shares sign-ins across desktops (OPHQ-163): the opener and the menu use the wrapper.
-    test -x /usr/local/bin/ahi-firefox
-    grep -q "^exec /usr/local/bin/ahi-firefox " /usr/local/bin/ahi-open-url
-    if grep -qs "<command>/usr/bin/firefox</command>" /defaults/menu.xml /defaults/menu_wayland.xml; then
-      echo "a menu still starts Firefox without the shared sign-ins" >&2; exit 1
-    fi
-    test -x /usr/local/bin/ahi-farm-connect
-    test -x /etc/s6-overlay/s6-rc.d/init-ahi-farm/run
-    grep -q "^VERSION = " /opt/ahi/addon/openprinthq_print_queue.py
-    grep -q "OPENPRINTHQ_API_KEY" /opt/ahi/addon/openprinthq_print_queue.py
-    echo "image: every change in place"
-  '
+  set -- $apps
+  [ "$#" -eq 1 ] || { echo "IMAGE needs one app in APPS" >&2; exit 2; }
+  echo "checking $IMAGE ($1)"
+  $docker run --rm --entrypoint /bin/bash -e APP="$1" -v "$here/apps/$1/image-check.sh:/ahi-app-check.sh:ro" \
+    -v "$here/tests/image-check.sh:/ahi-check.sh:ro" "$IMAGE" -c 'bash /ahi-check.sh && bash /ahi-app-check.sh'
+  echo "image: every change in place"
 fi

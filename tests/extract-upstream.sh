@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Copy every file and folder convert/convert.py reads or edits out of the pinned upstream image (upstream.env)
-# into tests/.upstream, laid out as in the image. A file or folder the image no longer has fails here.
+# Copy every file and folder an app's conversion reads or edits out of its pinned upstream image
+# (apps/<app>/upstream.env) into tests/.upstream/<app>, laid out as in the image. A file or folder the image no
+# longer has fails here.
 #
-#   tests/extract-upstream.sh [image]     (default: the image and digest in upstream.env)
+#   tests/extract-upstream.sh <app> [image]     (default image: the one and digest in upstream.env)
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"
-# shellcheck disable=SC1091
-. "$here/upstream.env"
-image="${1:-$ORCASLICER_IMAGE:$ORCASLICER_VERSION@$ORCASLICER_DIGEST}"
-out="$here/tests/.upstream"
+app="${1:?usage: tests/extract-upstream.sh <app> [image]}"
+# shellcheck disable=SC1090
+. "$here/apps/$app/upstream.env"
+image="${2:-$UPSTREAM_IMAGE:$UPSTREAM_VERSION@$UPSTREAM_DIGEST}"
+out="$here/tests/.upstream/$app"
 docker="${DOCKER:-docker}"
 
 rm -rf "$out"
@@ -17,8 +19,10 @@ cid="$($docker create "$image")"
 trap '$docker rm "$cid" > /dev/null' EXIT
 
 list="$(python3 -I -c '
-import sys; sys.path.insert(0, sys.argv[1]); import convert
-for rel in convert.FOLDERS + convert.EDITED: print(rel)' "$here/convert")"
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("app_convert", sys.argv[1])
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+for rel in (*mod.UPSTREAM_FOLDERS, *mod.UPSTREAM_FILES): print(rel)' "$here/apps/$app/convert.py")"
 status=0
 while read -r rel; do
   # Through tar, so the copy belongs to whoever runs the tests (docker cp may run as root) and is writable.

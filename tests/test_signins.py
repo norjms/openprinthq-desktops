@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("ahi_signins", REPO / "convert/files/browser/ahi_signins.py")
+spec = importlib.util.spec_from_file_location("ahi_signins", REPO / "common/files/browser/ahi_signins.py")
 signins = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(signins)
 

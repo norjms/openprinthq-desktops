@@ -1,166 +1,116 @@
-# openprinthq-orcaslicer
+# openprinthq-desktops
 
-OrcaSlicer in the browser for OpenPrintHQ: [linuxserver.io's OrcaSlicer image](https://github.com/linuxserver/docker-orcaslicer)
-(OrcaSlicer in a Selkies web desktop), restyled to look like the rest of OpenPrintHQ, and able to open files the
-farm sends it (B49). OrcaSlicer keeps every control, layout, icon and word. Only colours and fonts change, and
-only where they are read from files at run time; OrcaSlicer's source is not changed or rebuilt.
+Desktop apps for OpenPrintHQ: each one runs in a web desktop that opens in the hub, in the OpenPrintHQ look.
+The installer offers them as a catalogue grouped by craft (3D printing, laser crafting, graphic art), installs
+the ones you pick, and gives each person their own desktop.
 
-This repository holds no copy of the upstream image. It holds the steps that restyle a published
-linuxserver.io release, and the build applies them to the release named in `upstream.env`:
+This repository holds the steps that build those images. It holds no copy of any app: each image is built from
+a published upstream image at a pinned digest, and only colours, fonts and the desktop around the app change.
 
-| File | What it is |
-|---|---|
-| `upstream.env` | The upstream image built from: its version tag, the digest that tag must be, and the linuxserver/docker-orcaslicer commit it was built from. Also the fontsource version for the web fonts. |
-| `convert/convert.py` | The restyle, as a script. Each edit names the exact text it changes and stops the build if a release no longer has it. |
-| `convert/files/` | Files added to the image: the dashboard stylesheet, the labwc and GTK themes, GTK's settings, a start-up step that turns on OrcaSlicer's dark mode for a new `/config`, and one that sets up Files. |
-| `Dockerfile` | Takes the pinned image, adds the fonts, runs the conversion. |
-| `tests/` | `run.sh` takes every file the conversion edits out of the pinned image and tests the conversion on them (they fail if the image lacks one); with `IMAGE=` set it also checks a built image. Needs Docker (`DOCKER="sudo docker"` where the user is not in the docker group) and Python 3. |
+Windows-only apps run under Wine, and their images hold Wine but no part of the app. The desktop's first start
+downloads the vendor's own installer from the vendor (`WINE_APP_URL` in the app's `app.env`, checked against
+`WINE_APP_SHA256` when the vendor publishes a fixed address), installs it into that desktop's storage, and starts
+it (`common/wine/ahi-wine-app`). The person accepts the vendor's terms in the app's own windows. xTool Studio's
+first-run windows open blank under Wine, so its desktop asks the same questions itself, showing xTool's own terms
+from the installed app, and records only the person's answers, where xTool's windows would
+(`apps/xtoolstudio/root/usr/local/lib/ahi/xtool_consent.py`).
 
-## What changes
+Every desktop's Firefox shares the person's web sign-ins with their other desktops (OPHQ-163): when the
+installer mounts a sign-ins folder at `/ahi-browser`, `ahi-firefox` takes the newest sign-in cookies into the
+desktop's own profile before Firefox starts and writes its own back while it runs and when it closes
+(`common/files/browser/ahi_signins.py`). Each desktop keeps its own profile, since Firefox cannot open one from
+two places at once.
 
-| Where | Before | After |
-|---|---|---|
-| Web desktop page (Selkies dashboard) | Selkies' pink and violet toolbar, Inter, light and dark modes | A copy of the dashboard, `artisanhub-dashboard`, selected with `DASHBOARD`: openprinthq-ui colours (accent `#8fd3ff`, page `#172028`), a glass toolbar with a 28px radius, Manrope with Sora for the wordmark, dark only (the light-mode switch is hidden). Selkies' own `selkies-dashboard` is untouched, so `DASHBOARD=selkies-dashboard` brings it back. |
-| Page install colours (manifest) | `#000000` | `#172028` |
-| Window title bar (labwc) | Clearlooks | Theme `OpenPrintHQ`: page colour, text `#f1f6fa`, Manrope bold, accent on hover |
-| OrcaSlicer's native controls (GTK 3) | Adwaita, light | Theme `OpenPrintHQ`: Adwaita dark under the openprinthq-ui colours, Manrope 10 (`/etc/gtk-3.0/settings.ini`) |
-| OrcaSlicer's dark mode | Off | On for a new `/config` (an existing `OrcaSlicer.conf` is never changed) |
-| OrcaSlicer's web pages (home, setup wizard, dialogs) | Orca's dark values (`#2d2d31`, `#009688` ...) | The canvas's colour map: panel `#273642`, sidebar `rgba(255,255,255,0.08)` on `#172028`, accent `#8fd3ff` with dark text on it, text `#f1f6fa`, muted `rgba(236,243,248,0.75)`, field `rgba(20,30,38,0.5)` with a 0.2 white line, error `#e66767`; font Manrope |
-| The web desktop's file panel page (download and upload) | Selkies' pink palette, light and dark | openprinthq-ui colours over the page gradient, dark only, 22px radius; same layout and words |
-| Files (`FILE_MANAGER_PATH`, `/config/Files` as OpenPrintHQ sets it) | Uploads and downloads in `~/Desktop` | At each start: `Files` and `Files/Exports` exist and belong to the desktop's user, as does a `Send to hub` folder mounted there (never its contents); OrcaSlicer's file dialogs get bookmarks for Files, Library, Exports, Send to hub and Shared when present, ahead of the person's own (which are kept); OrcaSlicer exports to `Exports` and opens from `Files` until the person picks somewhere else (only keys not yet set are added) |
-| Opening files from the farm | None | The installer mounts the desktop's inbox at `Files/From the farm`. The farm's "Open in OrcaSlicer" writes the file there and a marker `.open-<name>`; `svc-ahi-inbox` opens each marked file in the OrcaSlicer already running (or starts one when none has run for a minute), once. For that, OrcaSlicer's "single instance" is turned on at every start and `svc-ahi-bus` gives the desktop a session bus (named in labwc's `environment`) for the running OrcaSlicer to be found on. `From the farm` gets a bookmark too. |
-| Web addresses (sign-in pages, help links) | `HARDEN_DESKTOP` takes `xdg-open` away, so OrcaSlicer's "open in browser" does nothing and its sign-ins (Orca Cloud, SimplyPrint, 3DPrinterOS, and the Google and other social accounts they offer) cannot start | `ahi-open-url` opens http and https addresses, and nothing else, in upstream's Firefox. It is `xdg-open`, `$BROWSER` (also in labwc's `environment`, which OrcaSlicer starts from) and the default handler for web addresses (`/etc/xdg/mimeapps.list`), so the sign-in page opens in the desktop and its `http://localhost` answer reaches OrcaSlicer. Firefox runs with policies: no `file://` pages, no developer tools or `about:config`, no saved passwords (a desktop can be shared), downloads to `Files`. It starts through `ahi-firefox`, which shares the person's sign-ins with their other desktops when the installer mounts a sign-ins folder at `/ahi-browser` (OPHQ-163, `ahi_signins.py`, the same as openprinthq-desktops'). |
+| App | Craft | Built from | Folder |
+| --- | --- | --- | --- |
+| Bambu Studio | 3D printing | linuxserver.io `bambustudio` | `apps/bambustudio` |
+| PrusaSlicer | 3D printing | Debian's `prusa-slicer` on linuxserver.io `baseimage-selkies` | `apps/prusaslicer` |
+| Creality Print | 3D printing | Creality's Linux build on linuxserver.io `baseimage-selkies` | `apps/crealityprint` |
+| Bambu Suite | Laser crafting | Wine on linuxserver.io `baseimage-selkies`; Bambu Lab's installer at first start | `apps/bambusuite` |
+| xTool Studio | Laser crafting | Wine on linuxserver.io `baseimage-selkies`; xTool's installer at first start, and its first-run questions asked by the desktop | `apps/xtoolstudio` |
+| eufyMake Studio | Graphic art | Wine on linuxserver.io `baseimage-selkies`; eufyMake's installer at first start | `apps/eufymakestudio` |
+| OrcaSlicer | 3D printing | linuxserver.io `orcaslicer`, followed daily and released on its own (below) | `apps/orcaslicer` |
 
-### Left out: needs OrcaSlicer source changes
+## OrcaSlicer
 
-These are drawn by OrcaSlicer's C++ code with colours compiled into it, so they keep OrcaSlicer's own dark
-colours here. They belong to the OrcaSlicer fork's recolour (retheme Task 10 (b)), which replaces the dark
-colour table from openprinthq-ui's generated C++ header:
+OrcaSlicer's desktop came from its own repository, `openprinthq-orcaslicer`, which this one now is: the
+desktops were merged in and the repository renamed (OPHQ-165), so the old address still works. It keeps its own
+layout under `apps/orcaslicer` (see [its README](apps/orcaslicer/README.md)) and its own release flow:
 
-- The dark colour table of OrcaSlicer's own widgets (`StateColor` dark map): tab bar, sidebar, buttons,
-  combo boxes, switches, the parameter pages and their accent green.
-- The 3D plate view: background, bed, grid, selection and gizmo colours (`GLCanvas3D` and the 3D scene).
-- Colours injected at run time into the dialog pages (`--orca-*` from `WebViewHostDialog`).
-- Warning and error colours in OrcaSlicer's notifications (ImGui), and the G-code viewer's legend colours.
-- Fonts of the ImGui overlays (they load OrcaSlicer's bundled fonts) and the G-code viewer, which would take
-  JetBrains Mono.
-- Icons: unchanged by design (visuals keep OrcaSlicer's icons).
+- `orcaslicer-upstream.yml` follows linuxserver.io's OrcaSlicer releases every day and moves `apps/orcaslicer/upstream.env`.
+- `orcaslicer-publish.yml` publishes `ghcr.io/norjms/openprinthq-orcaslicer` and the farm's slicing service at the same
+  version, and makes a release carrying `orcaslicer.json`.
+- **OpenPrintHQ installations read this repository's latest release** to offer new OrcaSlicer versions. A release
+  for any other app here must be made with `--latest=false`.
 
-Also seen, and left as upstream shows it:
+## How it is laid out
 
-- The setup wizard's window is maximised by the web desktop while its page keeps its fixed size, so the window's
-  own background (set in OrcaSlicer's C++, white) shows to the right of and below the page. The page itself is
-  dark. A fix is the fork's (the dialog's background colour) or the window manager not maximising that dialog,
-  which would change upstream behaviour, so neither is done here.
-- OrcaSlicer draws its own title row (menu, undo, Calibration, window buttons) under the web desktop's title
-  bar, as upstream does. Turning the web desktop's title bar off (`NO_DECOR`) is linuxserver.io's switch and is
-  left to the installer to decide.
-- The light values of the wizard's per-page sheets (`guide/<n>/*.css`) are unchanged; they only show when
-  OrcaSlicer's dark mode is off.
-- The Selkies logo in the toolbar keeps its own colours (icons are not changed).
-
-## Keeping up with upstream
-
-This happens on its own:
-
-- **`upstream.yml`**, every day and on demand: when linuxserver.io has a newer `vX.Y.Z-lsN` release than
-  `upstream.env` names (a new OrcaSlicer release, or a new build of the same one; never older, never a
-  prerelease, `latest` or a branch), it moves `upstream.env` and the `Dockerfile` defaults to it, with the
-  digest the tag is now and the commit it was built from, runs the tests, commits to `main` and publishes.
-- **`publish.yml`**, on every change to `main` that changes the image, and on demand: tests, builds both
-  architectures, pushes the image, checks the pushed image, makes sure the farm's slicing service is
-  published at the same OrcaSlicer version (building it from `openprinthq-farm`'s `slicer/` with OrcaSlicer's
-  own checksums when it is not), and makes a release whose `orcaslicer.json` names both images by digest.
-- OpenPrintHQ installations read the latest release's `orcaslicer.json` and offer the new version to their
-  people; nothing changes on an installation until someone accepts it there.
-
-By hand, the same steps: read the tag's digest with `docker buildx imagetools inspect
-lscr.io/linuxserver/orcaslicer:vX.Y.Z-lsN` and its commit with `git ls-remote
-https://github.com/linuxserver/docker-orcaslicer vX.Y.Z-lsN`; move the three image lines and `UPSTREAM_COMMIT` in
-`upstream.env` and the two `ARG` defaults in the `Dockerfile` (a test checks they agree); run `tests/run.sh`.
-
-## Building
-
-linuxserver.io publishes this image for amd64 and arm64 (the `v2.5.1-ls51` index pinned in `upstream.env` carries
-both), so it is built for both. The build reads its arguments from `upstream.env`:
-
-```sh
-. ./upstream.env
-docker buildx build --platform linux/amd64,linux/arm64 \
-  --build-arg ORCASLICER_IMAGE="$ORCASLICER_IMAGE" \
-  --build-arg ORCASLICER_VERSION="$ORCASLICER_VERSION" \
-  --build-arg ORCASLICER_DIGEST="$ORCASLICER_DIGEST" \
-  --build-arg FONTSOURCE_VERSION="$FONTSOURCE_VERSION" \
-  -t openprinthq-orcaslicer:local .
-IMAGE=openprinthq-orcaslicer:local tests/run.sh
+```
+common/restyle.py        the OpenPrintHQ restyle every app shares
+common/wine/ahi-wine-app  installs and starts a Windows app under Wine (the Wine apps)
+common/files/            what it adds: the web desktop's stylesheet, window and GTK themes, the browser
+                         opener, and the start-up steps (s6) every desktop runs
+apps/<app>/upstream.env  the upstream image, its version tag, the digest that tag must be, and the
+                         architectures it is published for (PLATFORMS)
+apps/<app>/app.env       the app's settings for the shared start-up steps
+apps/<app>/convert.py    the shared restyle, then the app's own changes
+apps/<app>/Dockerfile    builds the image (from the repository's root)
+apps/<app>/NOTICE        the works in the image and their licences
+apps/<app>/image-check.sh  checks a built image has the app's own changes
+tests/                   the tests for all of it
 ```
 
-Published images are `ghcr.io/norjms/openprinthq-orcaslicer`, tagged `sha-<commit>`, the upstream version
-(`2.5.1-ls51`), the OrcaSlicer version (`2.5.1`) and `latest`. Installs pin an image by digest.
+## What every desktop gets
 
-## How the installer serves it
+- The web desktop's page in the OpenPrintHQ colours and fonts, titled with the app's name.
+- The window manager and GTK in the OpenPrintHQ theme, Manrope as the font.
+- Files: the folder the web desktop's file panel serves, with the hub's library, "Send to hub", "From the
+  farm", Exports and shared folders, bookmarked in every file dialog.
+- Web addresses the app opens (sign-in pages, help) go to the desktop's Firefox, http and https only.
+- Files the farm sends open in the app, joining its window when it is running.
 
-At `/apps/orcaslicer/` of the hub's name, behind Authelia, like the farm. The container is not published on
-any port; Caddy reaches it on the stack network.
+## app.env
 
-```yaml
-orcaslicer:
-  image: ghcr.io/norjms/openprinthq-orcaslicer:sha-<short>@sha256:<digest>
-  environment:
-    PUID: "1000"
-    PGID: "1000"
-    TZ: <the installation's time zone>
-    SUBFOLDER: /apps/orcaslicer/     # Selkies serves its page and its websocket (api) under this path
-    TITLE: OrcaSlicer
-    HARDEN_DESKTOP: "true"           # no terminal, no sudo, no xdg-open; the desktop is reachable from the web
-    NO_GAMEPAD: "true"
-    NO_WEBCAM: "true"
-  volumes:
-    - orcaslicer-config:/config      # OrcaSlicer's profiles and projects
-  shm_size: 1gb
-  labels:
-    artisanhub.managed: orcaslicer
+Read by the start-up steps, as shell:
+
+| Key | Meaning |
+| --- | --- |
+| `APP_TITLE` | The app's name, in logs. |
+| `APP_CONF` | The app's settings file, under /config. |
+| `APP_CONF_NEW` | What a new settings file starts as (printf escapes), so the app starts dark. |
+| `APP_SINGLE_INSTANCE` | `json` or `ini`: turn on the app's single-instance setting, so sent files join its window. |
+| `APP_FILES_DEFAULTS` | `json` or `ini`: open from Files and export to Exports until the person picks elsewhere. |
+| `APP_PROCESS` | What the app's running process is called, to tell whether it is open. |
+| `APP_RUN` | How to start it with a file. Empty: the app cannot open a file it is given. |
+
+An app with a setup step of its own (a Wine app installing the vendor's build into /config) adds an
+executable `/etc/ahi/app-init`, which runs after these.
+
+## Adding an app
+
+1. Make `apps/<app>/` with the files above. `convert.py` calls `restyle.apply(root, title, app_env)` and then
+   changes only what is the app's own, each edit naming text that must be found, so an upstream change stops
+   the build instead of being guessed at.
+2. Add `changes_<app>` to `tests/test_desktops.py` for the app's own changes.
+3. `APPS=<app> tests/run.sh`, then build and `APPS=<app> IMAGE=<image> tests/run.sh`.
+
+An app linuxserver.io publishes no image for is installed on their `baseimage-selkies` in a stage named
+`prepared` (base and packages, and its `root/defaults` with the autostart that starts the app), which the tests
+take their files from, then converted in the last stage (`apps/prusaslicer`).
+
+CI runs the same for every folder under `apps/`. The OpenPrintHQ release build publishes an app as
+`ghcr.io/norjms/openprinthq-<app>` with its `desktop-<app>` target.
+
+## Tests
+
 ```
-
-Caddy (path kept whole, so Selkies' `SUBFOLDER` matches it):
-
-```caddy
-redir /apps/orcaslicer /apps/orcaslicer/ 308
-handle /apps/orcaslicer/* {
-  forward_auth authelia:9091 {
-    uri /api/authz/forward-auth
-    copy_headers Remote-User Remote-Groups Remote-Email Remote-Name
-  }
-  reverse_proxy orcaslicer:3000
-}
+tests/run.sh                                                  every app
+APPS=bambustudio tests/run.sh                                 one app
+docker build -f apps/bambustudio/Dockerfile -t openprinthq-bambustudio:local .
+APPS=bambustudio IMAGE=openprinthq-bambustudio:local tests/run.sh   and its built image
 ```
-
-Port 3000 is Selkies' plain HTTP port, meant to sit behind a proxy; Caddy gives the browser the secure context
-Selkies needs. Authelia's rule list gains one rule beside the farm's, for the hub's name:
-
-```yaml
-- domain: <hub name>
-  resources: ['^/apps/orcaslicer([/?].*)?$']
-  policy: one_factor
-```
-
-Give it the same `subject` the farm's rule has, if the farm's rule names one, so the same people reach both.
-
-The hub's Slicing pages link to `/apps/orcaslicer/`.
-
-## Running it by hand
-
-```sh
-docker run -d --name orcaslicer -p 127.0.0.1:3000:3000 -e PUID=1000 -e PGID=1000 \
-  --shm-size=1g -v orcaslicer-config:/config ghcr.io/norjms/openprinthq-orcaslicer:latest
-```
-
-Open `http://localhost:3000/`. Everything linuxserver.io documents for its image applies
-([configuration reference](https://docs.linuxserver.io/selkies/user-guide/configuration/)).
 
 ## Licence
 
-linuxserver.io's files are under the GNU General Public License, version 3, and so are this repository's own
-files: see `LICENSE`. OrcaSlicer, in the image, is under the GNU Affero General Public License, version 3
-(`LICENSES/AGPL-3.0.txt`), including its web resource files as `convert/convert.py` changes them. `NOTICE`
-lists every work in the image and its licence.
+The repository's own files are GPL-3.0 (LICENSE), the licence of the linuxserver.io images they build on. Each
+image's NOTICE lists the works it contains and their licences.

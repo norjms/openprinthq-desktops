@@ -1,0 +1,31 @@
+openprinthq-bambustudio
+Copyright (C) 2026 James Norman
+
+Built by openprinthq-desktops (apps/bambustudio): the steps that restyle linuxserver.io's Bambu Studio image
+for OpenPrintHQ. The repository holds no copy of that image, of its source or of Bambu Studio. The image built
+contains the works below, each under its own licence, which the repository and the image keep.
+
+linuxserver.io docker-bambustudio
+  https://github.com/linuxserver/docker-bambustudio
+  Copyright (C) linuxserver.io. GNU General Public License, version 3 (LICENSE).
+  The image's base, its start-up scripts, its window manager settings (defaults/labwc.xml) and its web server
+  set-up (etc/s6-overlay/s6-rc.d/init-nginx/run) are linuxserver.io's; common/restyle.py changes the last two
+  as described in it. The repository's own files are offered under the same licence, GPL-3.0 (LICENSE).
+
+Selkies
+  https://github.com/selkies-project/selkies
+  The web desktop and its dashboard (usr/share/selkies), Mozilla Public License 2.0 as published with it.
+  The OpenPrintHQ dashboard is a copy of Selkies' own with one stylesheet added; Selkies' files are not changed.
+
+Bambu Studio
+  https://github.com/bambulab/BambuStudio
+  Copyright (C) Bambu Lab. GNU Affero General Public License, version 3 (LICENSES/AGPL-3.0.txt).
+  Bambu Studio is used as linuxserver.io ships it. apps/bambustudio/convert.py changes colour and font values
+  in five of its web resource files (resources/web/guide/css/dark.css, guide/css/common.css,
+  homepage3/css/dark.css, homepage3/css/common.css, homepage3/css/left.css); those files, as changed, stay
+  under the AGPL-3.0, and their source is the upstream file and the change in convert.py. Bambu Studio's
+  source is at the address above, at the tag of the version named in apps/bambustudio/upstream.env.
+
+Fonts
+  Manrope, Sora and JetBrains Mono, SIL Open Font License 1.1 (the licence files are in the image next to the
+  fonts, usr/share/selkies/artisanhub-dashboard/ahi/fonts).

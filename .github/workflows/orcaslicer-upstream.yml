@@ -1,9 +1,9 @@
 # Follow linuxserver.io's OrcaSlicer releases (Q7).
 #
 # Every day, and on demand: when linuxserver/docker-orcaslicer has a newer release than upstream.env names (a
-# new OrcaSlicer release, or a new build of the same one), move upstream.env and the Dockerfile's defaults to
+# new OrcaSlicer release, or a new build of the same one), move apps/orcaslicer/upstream.env and its Dockerfile's defaults to
 # it, with the digest the tag is now and the commit it was built from, run the tests, commit to main, and
-# publish (publish.yml): the desktop image, the farm's slicing service at the same OrcaSlicer version, and a
+# publish (orcaslicer-publish.yml): the desktop image, the farm's slicing service at the same OrcaSlicer version, and a
 # release OpenPrintHQ installations read to offer the new version to their people.
 name: upstream
 
@@ -17,7 +17,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: upstream
+  group: orcaslicer-upstream
   cancel-in-progress: false
 
 jobs:
@@ -35,7 +35,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          . ./upstream.env
+          . apps/orcaslicer/upstream.env
           gh api repos/linuxserver/docker-orcaslicer/releases/latest > release.json
           tag="$(jq -r .tag_name release.json)"
           if [ "$(jq -r .prerelease release.json)" != "false" ] || ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-ls[0-9]+$ ]]; then
@@ -54,15 +54,15 @@ jobs:
           [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] && [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
           sed -i -e "s/^ORCASLICER_VERSION=.*/ORCASLICER_VERSION=$tag/" \
                  -e "s/^ORCASLICER_DIGEST=.*/ORCASLICER_DIGEST=$digest/" \
-                 -e "s/^UPSTREAM_COMMIT=.*/UPSTREAM_COMMIT=$commit/" upstream.env
+                 -e "s/^UPSTREAM_COMMIT=.*/UPSTREAM_COMMIT=$commit/" apps/orcaslicer/upstream.env
           sed -i -e "s/^ARG ORCASLICER_VERSION=.*/ARG ORCASLICER_VERSION=$tag/" \
-                 -e "s/^ARG ORCASLICER_DIGEST=.*/ARG ORCASLICER_DIGEST=$digest/" Dockerfile
+                 -e "s/^ARG ORCASLICER_DIGEST=.*/ARG ORCASLICER_DIGEST=$digest/" apps/orcaslicer/Dockerfile
           rm release.json
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Test the conversion on the new image
         if: steps.next.outputs.tag != ''
-        run: bash tests/run.sh
+        run: bash apps/orcaslicer/tests/run.sh
 
       - id: commit
         name: Commit to main
@@ -80,7 +80,7 @@ jobs:
   publish:
     needs: follow
     if: needs.follow.outputs.ref != ''
-    uses: ./.github/workflows/publish.yml
+    uses: ./.github/workflows/orcaslicer-publish.yml
     with:
       ref: ${{ needs.follow.outputs.ref }}
     permissions:

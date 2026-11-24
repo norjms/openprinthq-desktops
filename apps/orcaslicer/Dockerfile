@@ -1,10 +1,11 @@
 # openprinthq-orcaslicer: linuxserver.io's OrcaSlicer image, restyled for OpenPrintHQ by convert/convert.py.
+# Built from the repository root: docker build -f apps/orcaslicer/Dockerfile .
 #
 # The image comes from upstream.env (passed as build arguments by the release build): its
 # version tag and the digest that tag must be, so a moved tag fails the build instead of changing what is
 # built. OrcaSlicer itself is not rebuilt or changed: visuals, and opening files the farm sends (B49).
 
-# The defaults are upstream.env's values, so a plain "docker build ." builds the pinned image; the tests
+# The defaults are upstream.env's values, so a plain "docker build -f apps/orcaslicer/Dockerfile ." builds the pinned image; the tests
 # check the two agree.
 ARG ORCASLICER_IMAGE=lscr.io/linuxserver/orcaslicer
 ARG ORCASLICER_VERSION=v2.5.2-ls53
@@ -43,10 +44,10 @@ RUN mkdir -p /opt/ahi/addon \
       "https://raw.githubusercontent.com/norjms/openprinthq-farm/${ADDON_COMMIT}/control-plane/orcaslicer-addon/plugin/openprinthq_print_queue.py" \
  && echo "${ADDON_SHA256}  /opt/ahi/addon/openprinthq_print_queue.py" | sha256sum -c - \
  && chmod 644 /opt/ahi/addon/openprinthq_print_queue.py
-COPY convert /tmp/ahi-convert
+COPY apps/orcaslicer/convert /tmp/ahi-convert
 COPY --from=fonts /fonts /tmp/ahi-convert/files/dashboard/fonts
 RUN python3 /tmp/ahi-convert/convert.py / && rm -rf /tmp/ahi-convert
-COPY LICENSE NOTICE LICENSES /usr/share/doc/openprinthq-orcaslicer/
+COPY LICENSE apps/orcaslicer/NOTICE LICENSES /usr/share/doc/openprinthq-orcaslicer/
 # Q8: web addresses OrcaSlicer opens go to the desktop's Firefox (convert.py's browser step).
 ENV DASHBOARD=artisanhub-dashboard \
     TITLE=OrcaSlicer \

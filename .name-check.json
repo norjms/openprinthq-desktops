@@ -11,12 +11,14 @@
     "gtk-theme-name=ArtisanHub",
     "theme becomes \"ArtisanHub\"",
     "\"ArtisanHub\" is added",
-    "artisanhub-dashboard"
+    "artisanhub-dashboard",
+    "theme \"ArtisanHub\"",
+    "\"gtk-theme-name\": \"ArtisanHub\""
   ],
   "allow_until_renamed": [
     "(github\\.com/|ghcr\\.io/)?norjms/artisan-?hub[A-Za-z0-9_.-]*",
-    "\\bartisanhub-orcaslicer\\b",
-    "\\bartisan-hub-farm(-slicer)?\\b"
+    "\\bartisan-hub-farm(-slicer)?\\b",
+    "\\bartisanhub-orcaslicer\\b"
   ],
   "skip": [
     "CHANGELOG*",

@@ -1,3 +1,4 @@
 .git
 tests/.upstream
 **/__pycache__
+apps/orcaslicer/tests

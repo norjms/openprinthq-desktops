@@ -70,7 +70,8 @@ jobs:
       - id: push
         uses: docker/build-push-action@v6
         with:
-          context: apps/orcaslicer
+          context: .
+          file: apps/orcaslicer/Dockerfile
           platforms: linux/amd64,linux/arm64
           build-args: ${{ steps.v.outputs.args }}
           provenance: false

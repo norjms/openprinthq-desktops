@@ -76,11 +76,11 @@ jobs:
         run: |
           set -euo pipefail
           . ./upstream.env
-          docker build -t openprinthq-orcaslicer:ci \
+          docker build -f Dockerfile -t openprinthq-orcaslicer:ci \
             --build-arg ORCASLICER_IMAGE="$ORCASLICER_IMAGE" \
             --build-arg ORCASLICER_VERSION="$ORCASLICER_VERSION" \
             --build-arg ORCASLICER_DIGEST="$ORCASLICER_DIGEST" \
-            --build-arg FONTSOURCE_VERSION="$FONTSOURCE_VERSION" .
+            --build-arg FONTSOURCE_VERSION="$FONTSOURCE_VERSION" ../..
           IMAGE=openprinthq-orcaslicer:ci bash tests/run.sh
 
   # One check for branch protection to require, whatever apps there are.

@@ -67,7 +67,7 @@ This happens on its own:
   `upstream.env` names (a new OrcaSlicer release, or a new build of the same one; never older, never a
   prerelease, `latest` or a branch), it moves `upstream.env` and the `Dockerfile` defaults to it, with the
   digest the tag is now and the commit it was built from, runs the tests, commits to `main` and publishes.
-- **`publish.yml`**, on every change to `main` that changes the image, and on demand: tests, builds both
+- **`orcaslicer-publish.yml`**, on every change to `main` that changes the image, and on demand: tests, builds both
   architectures, pushes the image, checks the pushed image, makes sure the farm's slicing service is
   published at the same OrcaSlicer version (building it from `openprinthq-farm`'s `slicer/` with OrcaSlicer's
   own checksums when it is not), and makes a release whose `orcaslicer.json` names both images by digest.
@@ -81,18 +81,18 @@ https://github.com/linuxserver/docker-orcaslicer vX.Y.Z-lsN`; move the three ima
 
 ## Building
 
-linuxserver.io publishes this image for amd64 and arm64 (the `v2.5.1-ls51` index pinned in `upstream.env` carries
+From the repository root. linuxserver.io publishes this image for amd64 and arm64 (the `v2.5.1-ls51` index pinned in `upstream.env` carries
 both), so it is built for both. The build reads its arguments from `upstream.env`:
 
 ```sh
-. ./upstream.env
-docker buildx build --platform linux/amd64,linux/arm64 \
+. apps/orcaslicer/upstream.env
+docker buildx build -f apps/orcaslicer/Dockerfile --platform linux/amd64,linux/arm64 \
   --build-arg ORCASLICER_IMAGE="$ORCASLICER_IMAGE" \
   --build-arg ORCASLICER_VERSION="$ORCASLICER_VERSION" \
   --build-arg ORCASLICER_DIGEST="$ORCASLICER_DIGEST" \
   --build-arg FONTSOURCE_VERSION="$FONTSOURCE_VERSION" \
   -t openprinthq-orcaslicer:local .
-IMAGE=openprinthq-orcaslicer:local tests/run.sh
+IMAGE=openprinthq-orcaslicer:local apps/orcaslicer/tests/run.sh
 ```
 
 Published images are `ghcr.io/norjms/openprinthq-orcaslicer`, tagged `sha-<commit>`, the upstream version

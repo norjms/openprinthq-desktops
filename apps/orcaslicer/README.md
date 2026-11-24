@@ -63,7 +63,7 @@ Also seen, and left as upstream shows it:
 
 This happens on its own:
 
-- **`upstream.yml`**, every day and on demand: when linuxserver.io has a newer `vX.Y.Z-lsN` release than
+- **`orcaslicer-upstream.yml`**, every day and on demand: when linuxserver.io has a newer `vX.Y.Z-lsN` release than
   `upstream.env` names (a new OrcaSlicer release, or a new build of the same one; never older, never a
   prerelease, `latest` or a branch), it moves `upstream.env` and the `Dockerfile` defaults to it, with the
   digest the tag is now and the commit it was built from, runs the tests, commits to `main` and publishes.

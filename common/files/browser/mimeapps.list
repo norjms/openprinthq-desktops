@@ -1,0 +1,4 @@
+# OpenPrintHQ: web addresses from the desktop app open in the desktop's Firefox, through ahi-open-url.
+[Default Applications]
+x-scheme-handler/http=ahi-browser.desktop
+x-scheme-handler/https=ahi-browser.desktop

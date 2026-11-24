@@ -1,6 +1,8 @@
-# Tests: the conversion on the pinned linuxserver.io image's files, then a built image checked for every change.
 name: ci
 
+# Tests, image builds, secret scan, provenance and name checks for every pull request and every push to main.
+# GitHub-hosted runners only. Never point this repository at a self-hosted runner: a pull request from a fork
+# would run its code there. Images are published by the OpenPrintHQ release build, not here.
 on:
   pull_request:
   push:
@@ -9,12 +11,65 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GITLEAKS_IMAGE: zricethezav/gitleaks:v8.30.1
+
 jobs:
-  test:
+  apps:
+    runs-on: ubuntu-latest
+    outputs:
+      list: ${{ steps.list.outputs.list }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - id: list
+        run: echo "list=$(ls apps/*/convert.py | cut -d/ -f2 | jq -R . | jq -sc .)" >> "$GITHUB_OUTPUT"
+
+  common:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Shared restyle and start-up scripts
+        run: APPS=none python3 -m unittest discover -s tests -v
+
+  app:
+    needs: apps
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        app: ${{ fromJson(needs.apps.outputs.list) }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Conversion tests
+        run: APPS=${{ matrix.app }} bash tests/run.sh
+      - name: Build the image (linux/amd64) and check it
+        run: |
+          set -euo pipefail
+          . apps/${{ matrix.app }}/upstream.env
+          docker build -f apps/${{ matrix.app }}/Dockerfile -t openprinthq-${{ matrix.app }}:ci \
+            --build-arg UPSTREAM_IMAGE="$UPSTREAM_IMAGE" \
+            --build-arg UPSTREAM_VERSION="$UPSTREAM_VERSION" \
+            --build-arg UPSTREAM_DIGEST="$UPSTREAM_DIGEST" \
+            --build-arg FONTSOURCE_VERSION="$FONTSOURCE_VERSION" \
+            ${APP_PACKAGE_VERSION:+--build-arg APP_PACKAGE_VERSION="$APP_PACKAGE_VERSION"} \
+            ${APP_VERSION:+--build-arg APP_VERSION="$APP_VERSION"} \
+            ${APP_URL:+--build-arg APP_URL="$APP_URL"} ${APP_SHA256:+--build-arg APP_SHA256="$APP_SHA256"} .
+          APPS=${{ matrix.app }} IMAGE=openprinthq-${{ matrix.app }}:ci bash tests/run.sh
+
+  # The OrcaSlicer desktop (apps/orcaslicer): its own conversion and tests, from linuxserver.io's OrcaSlicer image.
+  orcaslicer:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: apps/orcaslicer
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
       - name: Conversion tests
         run: bash tests/run.sh
       - name: Build the image (linux/amd64) and check it
@@ -27,3 +82,69 @@ jobs:
             --build-arg ORCASLICER_DIGEST="$ORCASLICER_DIGEST" \
             --build-arg FONTSOURCE_VERSION="$FONTSOURCE_VERSION" .
           IMAGE=openprinthq-orcaslicer:ci bash tests/run.sh
+
+  # One check for branch protection to require, whatever apps there are.
+  images:
+    needs: [app, orcaslicer]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.app.result }}" = success && test "${{ needs.orcaslicer.result }}" = success
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Scan the tree
+        run: docker run --rm -v "$PWD:/repo" "$GITLEAKS_IMAGE" dir /repo --redact --no-banner
+      - name: Scan the new commits
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          git config --global --add safe.directory "$PWD"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            opts="$HEAD_SHA"
+          else
+            opts="$BASE..$HEAD_SHA"
+          fi
+          docker run --rm -v "$PWD:/repo" "$GITLEAKS_IMAGE" git /repo --redact --no-banner --log-opts="$opts"
+
+  provenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Test the checker
+        run: |
+          pip install pytest
+          git config --global user.name ci
+          git config --global user.email ci@example.com
+          python -m pytest -q -p no:cacheprovider tools/tests
+      - name: Check tracked files and the new commits
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            python tools/check_provenance.py --range "$HEAD_SHA"
+          else
+            python tools/check_provenance.py --range "$BASE..$HEAD_SHA"
+          fi
+
+  name-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Self-test
+        run: python3 tools/name_check.py --self-test
+      - name: Old name
+        run: python3 tools/name_check.py

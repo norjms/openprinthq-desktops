@@ -98,10 +98,8 @@ def main(argv: list[str]) -> int:
         return 0
     for name, n in hits:
         print(f"{name}:{n}" if n else f"{name}: file name")
-    print(
-        f"name-check: the old name is on {len(hits)} lines in {len(files)} files; rename them, or list a "
-        f"name that must stay in {CONFIG}"
-    )
+    print(f"name-check: the old name is on {len(hits)} lines in {len(files)} files; rename them, or list a "
+          f"name that must stay in {CONFIG}")
     return 1
 
 

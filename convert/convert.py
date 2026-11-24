@@ -66,6 +66,11 @@ FIREFOX_INI = "usr/lib/firefox/application.ini"
 FIREFOX_POLICIES = "usr/lib/firefox/distribution/policies.json"
 OPENER = "usr/local/bin/ahi-open-url"
 XDG_OPEN = "usr/local/bin/xdg-open"
+# Firefox with the web sign-ins every desktop shares (OPHQ-163), and the script that merges them.
+FIREFOX = "usr/local/bin/ahi-firefox"
+SIGNINS = "usr/local/lib/ahi/ahi_signins.py"
+# The desktop's own menus, whose Firefox item becomes ahi-firefox when they have one.
+MENUS = ("defaults/menu.xml", "defaults/menu_wayland.xml")
 BROWSER_DESKTOP = "usr/share/applications/ahi-browser.desktop"
 MIMEAPPS = "etc/xdg/mimeapps.list"
 # Q9: prints from OrcaSlicer go to the hub's print queue, through the OrcaSlicer add-on (the Dockerfile puts it in
@@ -327,6 +332,7 @@ def browser(root: Path) -> None:
         raise ConvertError(f"convert: {FIREFOX_INI}: not Firefox")
     src = FILES / "browser"
     for name, rel, mode in (("ahi-open-url", OPENER, 0o755), ("ahi-open-url", XDG_OPEN, 0o755),
+                            ("ahi-firefox", FIREFOX, 0o755), ("ahi_signins.py", SIGNINS, 0o755),
                             ("ahi-browser.desktop", BROWSER_DESKTOP, 0o644), ("mimeapps.list", MIMEAPPS, 0o644),
                             ("policies.json", FIREFOX_POLICIES, 0o644)):
         target = root / rel
@@ -335,6 +341,13 @@ def browser(root: Path) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src / name, target)
         os.chmod(target, mode)
+    # Firefox from the desktop's menu shares the sign-ins too (OPHQ-163).
+    for rel in MENUS:
+        menu = root / rel
+        if menu.is_file():
+            body = menu.read_text(encoding="utf-8")
+            menu.write_text(body.replace("<command>/usr/bin/firefox</command>", f"<command>/{FIREFOX}</command>"),
+                            encoding="utf-8")
 
 
 def farm(root: Path) -> None:

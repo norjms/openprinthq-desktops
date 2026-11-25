@@ -1,7 +1,7 @@
 # Publish the OrcaSlicer desktop (Q7, apps/orcaslicer), for linux/amd64 and linux/arm64, on GitHub's registry:
 #   ghcr.io/norjms/openprinthq-orcaslicer:<version>-ls<build>, :<version>, :latest and :sha-<commit>
 # with OpenPrintHQ Farm's slicing service at the same OrcaSlicer version (ghcr.io/norjms/openprinthq-farm-slicer:
-# <version>, built from openprinthq-farm's slicer/ when it is not published yet), and a release whose
+# <version>, built from farm/slicer in norjms/openprinthq when it is not published yet), and a release whose
 # orcaslicer.json names both images by digest. OpenPrintHQ installations read the latest release and offer the
 # new version to their people; nothing is replaced until someone accepts.
 name: publish
@@ -104,8 +104,8 @@ jobs:
       - uses: actions/checkout@v4
         if: steps.find.outputs.digest == ''
         with:
-          repository: norjms/openprinthq-farm
-          path: farm
+          repository: norjms/openprinthq
+          path: hub
       - id: args
         if: steps.find.outputs.digest == ''
         name: OrcaSlicer's own checksums for the release
@@ -114,7 +114,7 @@ jobs:
           VERSION: ${{ needs.desktop.outputs.orca }}
         run: |
           set -euo pipefail
-          . farm/slicer/orcaslicer.env
+          . hub/farm/slicer/orcaslicer.env
           gh api "repos/OrcaSlicer/OrcaSlicer/releases/tags/v$VERSION" > release.json
           sum() { jq -r --arg f "$1" '.assets[] | select(.name == $f) | .digest' release.json | sed 's/^sha256://'; }
           amd64="$(sum "OrcaSlicer_Linux_AppImage_Ubuntu2404_V$VERSION.AppImage")"
@@ -128,7 +128,7 @@ jobs:
             echo "ORCA_SLICER_API_COMMIT=$ORCA_SLICER_API_COMMIT"
             echo "ARGS"
           } >> "$GITHUB_OUTPUT"
-          echo "farm=$(git -C farm rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "farm=$(git -C hub rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-qemu-action@v3
         if: steps.find.outputs.digest == ''
       - uses: docker/setup-buildx-action@v3
@@ -143,14 +143,14 @@ jobs:
         if: steps.find.outputs.digest == ''
         uses: docker/build-push-action@v6
         with:
-          context: farm/slicer
-          file: farm/slicer/Dockerfile
+          context: hub/farm/slicer
+          file: hub/farm/slicer/Dockerfile
           platforms: linux/amd64,linux/arm64
           build-args: ${{ steps.args.outputs.args }}
           provenance: false
           push: true
           labels: |
-            org.opencontainers.image.source=https://github.com/norjms/openprinthq-farm
+            org.opencontainers.image.source=https://github.com/norjms/openprinthq
             org.opencontainers.image.revision=${{ steps.args.outputs.farm }}
           tags: ${{ env.SLICER }}:${{ needs.desktop.outputs.orca }}
 

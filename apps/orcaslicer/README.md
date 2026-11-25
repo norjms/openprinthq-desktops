@@ -69,7 +69,7 @@ This happens on its own:
   digest the tag is now and the commit it was built from, runs the tests, commits to `main` and publishes.
 - **`orcaslicer-publish.yml`**, on every change to `main` that changes the image, and on demand: tests, builds both
   architectures, pushes the image, checks the pushed image, makes sure the farm's slicing service is
-  published at the same OrcaSlicer version (building it from `openprinthq-farm`'s `slicer/` with OrcaSlicer's
+  published at the same OrcaSlicer version (building it from `farm/slicer` in `norjms/openprinthq` with OrcaSlicer's
   own checksums when it is not), and makes a release whose `orcaslicer.json` names both images by digest.
 - OpenPrintHQ installations read the latest release's `orcaslicer.json` and offer the new version to their
   people; nothing changes on an installation until someone accepts it there.
